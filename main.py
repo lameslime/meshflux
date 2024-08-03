@@ -80,14 +80,21 @@ def handle_missing_data(value, key):
 def prepare_node_data(node_data, own_data):
     all_nodes = []
 
+    # Finds and sets variable for host node
+    if INCLUDE_DISCOVERED_BY == True:
+        for key, value in node_data.items():
+            if handle_missing_data(value, "num") == handle_missing_data(own_data, "myNodeNum"):
+                print(f'Own node ({value["num"]}) found in all nodes ({own_data["myNodeNum"]}), including id: {str(key)}')
+                node_discovered_by = str(key)
+
+    # Main loop
     for key, value in node_data.items():
         # print(key)
         lastHeard = value.get("lastHeard", 0)
-
-        # test_heard = cur_time-lastHeard ### For debug
-        # print("Test Node: "+shortName+" lastHeard "+str(test_heard)+"sec ago") ### For debug
         cur_time = time.time()
-        if lastHeard > cur_time - TIME_OFFSET:  ### Check if the node is fresh
+        # print(f'Last heard: {lastHeard - (cur_time - TIME_OFFSET)}')
+
+        if TIME_OFFSET == 0 or lastHeard > cur_time - TIME_OFFSET:  ### Check if the node is fresh
 
             # node_data = {}
             # node_data["measurement"] = "meshtastic_node"
@@ -136,10 +143,8 @@ def prepare_node_data(node_data, own_data):
             if hw_model is not None:
                 node_data["tags"]["hw_model"] = str(hw_model)
 
-            if INCLUDE_DISCOVERED_BY == True and handle_missing_data(value, "num") == handle_missing_data(own_data, "myNodeNum"):
-                print(f'Own node ({value["num"]}) found in all nodes ({own_data["myNodeNum"]}), including id: {str(key)}')
-                
-                node_data["tags"]["discovered_by"] = str(key)
+            if node_discovered_by is not None:
+                node_data["tags"]["discovered_by"] = node_discovered_by
 
             node_data["fields"] = {}
             
@@ -238,6 +243,7 @@ if __name__ == '__main__':
         if READ_ONLY == False:
             send_nodes_to_influxdb(prepared_data)
         else:
+            print(prepared_data)
             exit()
         print(f'Sleeping {COLLECT_INTERVAL}s')
         

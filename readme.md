@@ -26,6 +26,7 @@ MQTT isn't meant for long term storage and it's harder to visualize
 
 # Note
 I happened to make it on Windows, there should be no problems on linux (check cmd variable)
+
 It is confirmed working with RAK4631 using PoE, you can edit cmd variable to use bt or usb
 
 # TODO

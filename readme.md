@@ -3,6 +3,7 @@ Basically
 - Reads data from Meshtastic device
 - Formats data
 - Sends to InfluxDB
+
 But also
 - Allows multiple devices to send info and filter based on it
 - Group devices by name, mac and hardware

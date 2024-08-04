@@ -14,7 +14,7 @@ But also
 ## Why
 MQTT isn't meant for long term storage and it's harder to visualize
 
-[<img src="./grafana-dashboard.png">]()
+[<img src="./grafana-dashboard.jpeg">]()
 
 ## Setup
 - Make sure you have a 

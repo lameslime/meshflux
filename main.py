@@ -66,20 +66,18 @@ def get_meshtastic_data(host):
 def get_meshtastic_own_data(raw_data):
     start_pos = raw_data.find("My info:") + len("My info:")
     end_pos = raw_data.find("Metadata: ")
-
     return meshtastic_json_parser(raw_data, start_pos, end_pos)
 
 def get_meshtastic_nodes(raw_data):
     start_pos = raw_data.find("Nodes in mesh: ") + len("Nodes in mesh: ")
     end_pos = raw_data.find("Preferences:")
-
     return meshtastic_json_parser(raw_data, start_pos, end_pos)
 
-def meshtastic_json_parser(json_chunk, start_pos, end_pos):
-    ### Get only the piece of data with node information
-    json_chunk = json_chunk[start_pos:end_pos]
+def meshtastic_json_parser(raw_data, start_pos, end_pos):
+    # Cut out data that is needed
+    json_chunk = raw_data[start_pos:end_pos]
 
-    ### Clean up the JSON before parsing
+    # Clean up the JSON before parsing
     json_chunk_fixed = json_chunk.replace("\\r", "")
     json_chunk_fixed = json_chunk_fixed.replace("\\n", "")
 
@@ -234,7 +232,7 @@ def send_nodes_to_influxdb(prepered_data):
             logger.critical(f'Send failed {count_attempts} times, reason {e}')
             time.sleep(10)
 
-    # For removing fields who's type has changed due to different data format sent
+    # For removing all data due to different data format sent compared to previous, Influx doesn't seem to support just deleting a column
     # client.delete_api().delete("2023-01-01T00:00:00Z", "2024-08-05T21:15:00Z", f'_measurement={INFLUXDB_MEASUREMENT}', bucket=INFLUXDB_DB, org=INFLUXDB_ORG)
     
 def list_old_nodes(old_nodes, new_nodes):

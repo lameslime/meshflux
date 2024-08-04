@@ -1,0 +1,7 @@
+services:
+  meshflux:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+     - ./env.py:/app/env.py

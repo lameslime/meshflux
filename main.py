@@ -10,12 +10,31 @@ from json import JSONDecodeError
 import os
 import subprocess
 import time
+import re
 from datetime import datetime, timezone
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 from env import *
 
+import logging
+from colorlog import ColoredFormatter
+
+logger = logging.getLogger()
+
+logger.setLevel(getattr(logging, LOG_LEVEL.upper()))
+# logger.setLevel(logging.DEBUG)  # Set the logging level
+
+# Create a console handler
+handler = logging.StreamHandler()
+formatter = ColoredFormatter(
+    "%(asctime)s | %(levelname)s: %(message)s",
+    datefmt='%Y-%m-%d %H:%M:%S',  # Basic date and time format
+    style='%'
+)
+
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 client = InfluxDBClient(
     url=INFLUXDB_HOST, token=INFLUXDB_TOKEN, org=INFLUXDB_ORG, verify_ssl=INFLUXDB_VERIFYSSL
@@ -26,16 +45,27 @@ client = InfluxDBClient(
 
 def get_meshtastic_data(host):
     # Gets info from local node, edit the command so it can find meshtastic plugin
-    send_attempts, count_attempts = 3, 0
-    while count_attempts < send_attempts:
+    get_attempts, count_attempts = 3, 0
+    fail_regex = "^b'Error connecting to.*(?=:)"
+    success_regex = "^b'Connected to radio"
+    while count_attempts < get_attempts:
         try:
             cmd = ["python", "-m", "meshtastic", "--host", host, "--info"] 
             result = str(subprocess.run(cmd, stdout=subprocess.PIPE).stdout)
-            return result
+
+            connection_success = re.search(success_regex, result)
+            if connection_success is not None:
+                return result
+            
+            # Not sure what kind of errors may arrive, so in exception it tries again 
+            connection_error = re.search(fail_regex, result)
+            if connection_error is not None:
+                raise ValueError(connection_error.group()[2:])
         except Exception as e:
             count_attempts = count_attempts + 1
-            print(f'Get failed {count_attempts} times, reason {e}')
+            logger.error(f'Get failed {count_attempts} times of {get_attempts}, reason "{e}"')
             time.sleep(10)
+    logger.error(f"Skipping {host}'s data collection")
     return None
     
 
@@ -57,7 +87,7 @@ def get_meshtastic_own_data(raw_data):
         parsed_json = json.loads(json_chunk_fixed)
         return parsed_json
     except JSONDecodeError:
-        print("JSON unparsable, maybe connection problem")
+        logger.critical("JSON unparsable, maybe connection problem")
         exit()
 
 def get_meshtastic_nodes(raw_data):
@@ -78,7 +108,7 @@ def get_meshtastic_nodes(raw_data):
         parsed_json = json.loads(json_chunk_fixed)
         return parsed_json
     except JSONDecodeError:
-        print("JSON unparsable, maybe connection problem")
+        logger.critical("JSON unparsable, maybe connection problem")
         exit()
 
 
@@ -93,10 +123,10 @@ def check_pos_time_diff(new_timestamp, host, node, old_data):
         old_timestamp = old_data[host][node]["position"]["time"]
         # print(f'{new_timestamp}; {old_timestamp}')
         if new_timestamp != old_timestamp:
-            print(f'{node} position timestamp different, including')
+            logger.debug(f'{node} position timestamp different, including')
             return True
     else:
-        print(f'No timestamp on {node}')
+        logger.debug(f'No timestamp on {node}')
         return False
 
 def prepare_node_data(node_data, own_data):
@@ -108,7 +138,7 @@ def prepare_node_data(node_data, own_data):
     if INCLUDE_DISCOVERED_BY == True:
         for key, value in node_data.items():
             if handle_missing_data(value, "num") == handle_missing_data(own_data, "myNodeNum"):
-                print(f'Own node ({value["num"]}) found in all nodes ({own_data["myNodeNum"]}), including id: {str(key)}')
+                logger.debug(f'Own node ({value["num"]}) found in all nodes ({own_data["myNodeNum"]}), including id: {str(key)}')
                 node_discovered_by = str(key)
         # second_pass will be empty in the 1st loop
         first_pass[node_discovered_by] = node_data
@@ -241,11 +271,11 @@ def send_nodes_to_influxdb(prepered_data):
     while count_attempts < send_attempts:
         try:
             client.write_api(write_options=SYNCHRONOUS).write(bucket=INFLUXDB_DB, org=INFLUXDB_ORG, record=prepered_data, write_precision=WritePrecision.S)
-            print(f'Sent nodes to influxdb')
+            logger.info(f'Sent nodes to influxdb')
             break
         except Exception as e:
             count_attempts = count_attempts + 1
-            print(f'Send failed {count_attempts} times, reason {e}')
+            logger.critical(f'Send failed {count_attempts} times, reason {e}')
             time.sleep(10)
 
     # for removing fields whos type has changed due to different data format sent
@@ -261,7 +291,7 @@ def list_old_nodes(old_nodes, new_nodes):
             node_list.remove(item['tags']['id'])
             # print(item['tags']['id'])
     if len(node_list) != 0:
-        print(f'Nodes {node_list} are too old, skipping them')
+        logger.debug(f'Nodes {node_list} are too old, skipping them')
 
 if __name__ == '__main__':
     # Initialize 2 empty dicts, 2nd one will be used for comapring difference
@@ -278,11 +308,11 @@ if __name__ == '__main__':
             # print(own_data)
             
             all_nodes = get_meshtastic_nodes(raw_data)
-            print(f'[{host}] Total of {len(all_nodes)} nodes found')
+            logger.info(f'[{host}] Total of {len(all_nodes)} nodes found')
             # print(list(all_nodes.keys()))
             # print(all_nodes)            
             prepared_data = prepare_node_data(all_nodes, own_data)
-            print(f'Total of {len(prepared_data)} nodes prepared')
+            logger.info(f'Total of {len(prepared_data)} nodes prepared')
             # print(prepared_data)
 
             
@@ -300,6 +330,6 @@ if __name__ == '__main__':
         # this ensures that second_pass is updated to reflect the latest state of first_pass
         second_pass = dict(first_pass)
 
-        print(f'Sleeping {COLLECT_INTERVAL}s')
+        logger.info(f'Sleeping {COLLECT_INTERVAL}s\n')
         time.sleep(COLLECT_INTERVAL)
 

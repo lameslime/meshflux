@@ -28,6 +28,11 @@ MQTT isn't meant for long term storage and it's harder to visualize
 - Import Grafana dashboard (you also need official GeoMap plugin)
 - Run and wait for data
 
+or skip having a python install and use a docker container
+- git clone https://github.com/lameslime/meshflux
+- copy env.py.example to env.py and fill in
+- docker compose up --build -d
+
 ## Note
 I happened to make it on Windows, there should be no problems on linux (check cmd variable)
 

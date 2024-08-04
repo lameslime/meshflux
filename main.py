@@ -62,36 +62,22 @@ def get_meshtastic_data(host):
     logger.error(f"Skipping {host}'s data collection")
     return None
     
+    # Cuts raw data from host, then gets parsed in another function
 def get_meshtastic_own_data(raw_data):
-    result = raw_data
-    
-    ### Clean up the results
-    start_pos = result.find("My info:") + len("My info:")
-    end_pos = result.find("Metadata: ")
+    start_pos = raw_data.find("My info:") + len("My info:")
+    end_pos = raw_data.find("Metadata: ")
 
-    ### Get only the piece of data with node information
-    json_chunk = result[start_pos:end_pos]
-
-    ### Clean up the JSON before parsing
-    json_chunk_fixed = json_chunk.replace("\\r", "")
-    json_chunk_fixed = json_chunk_fixed.replace("\\n", "")
-
-    try:
-        parsed_json = json.loads(json_chunk_fixed)
-        return parsed_json
-    except JSONDecodeError:
-        logger.critical("JSON unparsable, maybe connection problem")
-        exit()
+    return meshtastic_json_parser(raw_data, start_pos, end_pos)
 
 def get_meshtastic_nodes(raw_data):
-    result = raw_data
-    
-    ### Clean up the results
-    start_pos = result.find("Nodes in mesh: ") + len("Nodes in mesh: ")
-    end_pos = result.find("Preferences:")
+    start_pos = raw_data.find("Nodes in mesh: ") + len("Nodes in mesh: ")
+    end_pos = raw_data.find("Preferences:")
 
+    return meshtastic_json_parser(raw_data, start_pos, end_pos)
+
+def meshtastic_json_parser(json_chunk, start_pos, end_pos):
     ### Get only the piece of data with node information
-    json_chunk = result[start_pos:end_pos]
+    json_chunk = json_chunk[start_pos:end_pos]
 
     ### Clean up the JSON before parsing
     json_chunk_fixed = json_chunk.replace("\\r", "")

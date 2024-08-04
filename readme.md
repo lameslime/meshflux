@@ -42,6 +42,7 @@ Additinal logic will be needed in flux queries, to ignore/filter based on ingest
 - Done: Error handling (Meshtasic and InfluxDB timeouts); Super basic 3 tries and still continues
 - Done: Multiple Meshtastic nodes (currently you need more python instances)
 - Done: Data deduplication (GPS data gets outdated fast)
+- Filter out garbage position data (too big changes, eg node is indoors and gps is innaccurate)
 
 ## Credits
 Dmitri Prigojev for inspiration

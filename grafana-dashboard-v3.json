@@ -1,0 +1,1375 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Meshtastic Nodes from InfluxDB",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 32,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 18,
+        "w": 13,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "interval": "1m",
+      "maxDataPoints": 500,
+      "options": {
+        "basemap": {
+          "config": {},
+          "name": "Layer 0",
+          "type": "osm-standard"
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": false,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "config": {
+              "blur": 25,
+              "radius": 20,
+              "weight": {
+                "field": "snr",
+                "fixed": 1,
+                "max": 1,
+                "min": 0
+              }
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
+            "location": {
+              "latitude": "pos_latitude",
+              "longitude": "pos_longitude",
+              "mode": "coords"
+            },
+            "name": "Layer 2",
+            "opacity": 0.5,
+            "tooltip": false,
+            "type": "heatmap"
+          },
+          {
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": {
+                  "fixed": "dark-red"
+                },
+                "opacity": 0.7,
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "size": {
+                  "fixed": 6,
+                  "max": 15,
+                  "min": 2
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "text": {
+                  "field": "display_name",
+                  "fixed": "",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "fontSize": 8,
+                  "offsetX": 0,
+                  "offsetY": 12,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
+                }
+              }
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
+            "location": {
+              "latitude": "pos_latitude",
+              "longitude": "pos_longitude",
+              "mode": "coords"
+            },
+            "name": "Layer 1",
+            "opacity": 1,
+            "tooltip": true,
+            "type": "markers"
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "coords",
+          "lat": 58.7,
+          "lon": 25,
+          "zoom": 8
+        }
+      },
+      "pluginVersion": "11.2.0-190039",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\nimport \"join\"\r\nimport \"math\"\r\nimport \"date\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbucket1 = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"pos_latitude\" or r[\"_field\"] == \"pos_longitude\" or r[\"_field\"] == \"pos_time\" or r[\"_field\"] == \"snr\")\r\n  //|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> filter(fn: (r) => exists r.pos_latitude and exists r.pos_longitude and exists r._time and exists r.pos_time and exists r.snr)\r\n  |> map(fn: (r) => ({r with _time: time(v: r.pos_time)}))\r\n  |> group(columns: [\"${NodeIdentifier}\"])\r\n  |> map(fn: (r) => ({r with display_name: r.${DisplayName}}))\r\n  //|> yield(name: \"original\")\r\n\r\ndata = bucket1\r\n  |> sort(columns: [\"discovered_by\", \"${NodeIdentifier}\", \"_time\"])\r\n\r\ndatadiff = data\r\n  |> difference(columns: [\"pos_longitude\", \"pos_latitude\"])\r\n  |> map(fn: (r) => ({r with \r\n     aDiff: math.abs(x: r.pos_longitude),\r\n     bDiff: math.abs(x: r.pos_latitude)\r\n     }))\r\n  |> drop(columns: [\"pos_longitude\", \"pos_latitude\"])\r\n  //|> yield()\r\n\r\n// Original\r\ndatafinal = join.tables(method: \"inner\", left: data, right: datadiff, on: (l, r) => l._time == r._time, as: (l, r) => ({l with latdiff: r.aDiff, londiff: r.bDiff}),)\r\n  //|> filter(fn: (r) => (r._time > date.truncate(t: now(), unit: 30m)) or (r.latdiff >= 0.007 or r.londiff >= 0.007))\r\n  //|> filter(fn: (r) => (r.latdiff >= 0.007 or r.londiff >= 0.007))\r\n  //|> drop(columns: [\"latdiff\", \"londiff\"])\r\n  |> group()\r\n  |> yield(name: \"final\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "geomap"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.id}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 13,
+        "y": 0
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.2.0-190039",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "// Define base pipeline with necessary transformations\r\nbasePipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"channel_utilization\")\r\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n\r\n// Create a table of id and displayname with unique entries\r\nidDisplayNamePipeline = basePipeline\r\n  |> keep(columns: [\"id\", \"short_name\"])  // Keep only the columns of interest\r\n  |> rename(columns: {short_name: \"displayname\"})  // Rename column to displayname\r\n  |> group(columns: [\"id\", \"displayname\"])  // Group by id and displayname to ensure uniqueness\r\n  |> distinct(column: \"id\")  // Ensure unique 'id' entries\r\n\r\n// Conditionally apply the 'filter' function based on the variable\r\nfinalPipeline = if \"${DiscoveredById}\" != \"\" then idDisplayNamePipeline |> filter(fn: (r) => r[\"discovered_by\"] =~ /${DiscoveredById:regex}/) else idDisplayNamePipeline |> drop(columns: [\"discovered_by\"])\r\n\r\n// Yield the final result\r\nfinalPipeline\r\n  |> group()\r\n  |> drop(columns: [\"_value\"])\r\n  |> yield(name: \"id_displayname\")\r\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Table of id and display name",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.short_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 7,
+        "x": 17,
+        "y": 0
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "frameIndex": 1,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "_time"
+          }
+        ]
+      },
+      "pluginVersion": "11.2.0-190039",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\nimport \"join\"\r\nimport \"math\"\r\nimport \"date\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbucket1 = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"pos_latitude\" or r[\"_field\"] == \"pos_longitude\" or r[\"_field\"] == \"snr\")\r\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> filter(fn: (r) => exists r.pos_latitude and exists r.pos_longitude and exists r.snr)\r\n  |> group(columns: [\"${NodeIdentifier}\"])\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n  |> keep(columns: [\"short_name\", \"_time\", \"pos_latitude\", \"pos_longitude\", \"snr\"])\r\n  |> group()\r\n  |> yield(name: \"original\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest gps updates",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "dbi"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "snr"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.short_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 11,
+        "x": 13,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbasePipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"snr\")\r\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n\r\n// Conditionally apply the 'drop' function or filter with regex based on the variable\r\nfinalPipeline = if \"${DiscoveredById}\" != \"\" then basePipeline |> filter(fn: (r) => r[\"discovered_by\"] =~ /${DiscoveredById:regex}/) else basePipeline |> drop(columns: [\"discovered_by\"])\r\nfinalPipeline\r\n  |> yield(name: \"data\")\r\n",
+          "refId": "A"
+        }
+      ],
+      "title": "SNR",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "channel_utilization"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.short_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 11,
+        "x": 13,
+        "y": 17
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbasePipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"channel_utilization\")\r\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n\r\n// Conditionally apply the 'drop' function or filter with regex based on the variable\r\nfinalPipeline = if \"${DiscoveredById}\" != \"\" then basePipeline |> filter(fn: (r) => r[\"discovered_by\"] =~ /${DiscoveredById:regex}/) else basePipeline |> drop(columns: [\"discovered_by\"])\r\nfinalPipeline\r\n  |> yield(name: \"data\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Channel Utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 20
+              },
+              {
+                "color": "#EAB839",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "battery_level"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.short_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 18
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\nimport \"join\"\r\nimport \"math\"\r\nimport \"date\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbasePipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"battery_level\")\r\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n\r\n// Conditionally apply the 'drop' function or filter with regex based on the variable\r\nfinalPipeline = if \"${DiscoveredById}\" != \"\" then basePipeline |> filter(fn: (r) => r[\"discovered_by\"] =~ /${DiscoveredById:regex}/) else basePipeline |> drop(columns: [\"discovered_by\"])\r\nfinalPipeline\r\n  |> yield(name: \"data\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Battery",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "index": 0,
+                  "text": "Not Licensed"
+                },
+                "1": {
+                  "index": 1,
+                  "text": "Licensed"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "is_licensed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.short_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 3,
+        "x": 6,
+        "y": 18
+      },
+      "id": 3,
+      "options": {
+        "displayMode": "basic",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "top",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.2.0-190039",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\nimport \"join\"\r\nimport \"math\"\r\nimport \"date\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbucket1 = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"is_licensed\")\r\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> drop(columns: [\"_time\", \"discovered_by\"])\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n  |> unique(column: \"${NodeIdentifier}\")\r\n  |> yield(name: \"data\")\r\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Licensed radios",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "_value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.hw_model}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 9,
+        "y": 18
+      },
+      "id": 7,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "none",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbasePipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"hw_model\"] != \"\")\r\n  |> filter(fn: (r) => r[\"_field\"] == \"channel_utilization\")\r\n  //|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\r\n  |> group(columns: [\"hw_model\"])\r\n  |> unique(column: \"id\")\r\n  |> count()\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n\r\n// Conditionally apply the 'drop' function or filter with regex based on the variable\r\nfinalPipeline = if \"${DiscoveredById}\" != \"\" then basePipeline |> filter(fn: (r) => r[\"discovered_by\"] =~ /${DiscoveredById:regex}/) else basePipeline |> drop(columns: [\"discovered_by\"])\r\nfinalPipeline\r\n  |> yield(name: \"data\")",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": "now-1w",
+      "title": "Hardware used",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.id}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 0,
+        "y": 26
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.2.0-190039",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "// Pipeline to get unique discovered_by and corresponding id and DisplayName\r\nnodeIdentifierPipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"channel_utilization\")\r\n  |> filter(fn: (r) => r[\"discovered_by\"] != \"\")\r\n  |> group(columns: [\"discovered_by\", \"id\", \"${DisplayName}\"])\r\n  |> distinct(column: \"id\")\r\n  |> keep(columns: [\"discovered_by\", \"id\", \"${DisplayName}\"])\r\n  |> rename(columns: {${DisplayName}: \"displayname\"}) \r\n\r\n// Yield the result\r\nnodeIdentifierPipeline\r\n  |> group()\r\n  |> yield(name: \"nodes_by_discovered_by\")\r\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Hosts who have seen nodes",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.id}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 4,
+        "y": 26
+      },
+      "id": 10,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "// Pipeline to get unique discovered_by and count of nodes\r\nnodeIdentifierPipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"channel_utilization\")\r\n  |> filter(fn: (r) => r[\"discovered_by\"] != \"\")\r\n  |> group(columns: [\"discovered_by\", \"id\", \"${DisplayName}\"])\r\n  |> distinct(column: \"id\")\r\n  |> keep(columns: [\"discovered_by\", \"id\", \"${DisplayName}\"])\r\n  |> rename(columns: {${DisplayName}: \"displayname\"}) \r\n  |> group(columns: [\"discovered_by\"]) // Group by discovered_by\r\n  |> count(column: \"id\") // Count the number of nodes\r\n  |> rename(columns: {id: \"nodes\"}) // Rename count column to nodes\r\n\r\n// Yield the result\r\nnodeIdentifierPipeline\r\n  |> yield(name: \"nodes_by_discovered_by\")\r\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Node seen by host (tracking)",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a8WXhOlnk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "air_util_tx"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.short_name}"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 11,
+        "x": 13,
+        "y": 26
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a8WXhOlnk"
+          },
+          "query": "//import \"timezone\"\r\nimport \"join\"\r\nimport \"math\"\r\nimport \"date\"\r\n//option location = timezone.fixed(offset: ${TimeZone})\r\n\r\nbasePipeline = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${Node:regex}/)\r\n  |> filter(fn: (r) => r[\"_field\"] == \"air_util_tx\")\r\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\r\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn: \"_value\")\r\n  |> map(fn: (r) => ({r with short_name: r.${DisplayName}}))\r\n\r\n// Conditionally apply the 'drop' function or filter with regex based on the variable\r\nfinalPipeline = if \"${DiscoveredById}\" != \"\" then basePipeline |> filter(fn: (r) => r[\"discovered_by\"] =~ /${DiscoveredById:regex}/) else basePipeline |> drop(columns: [\"discovered_by\"])\r\nfinalPipeline\r\n  |> yield(name: \"data\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Air Utilization TX",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "a8WXhOlnk"
+        },
+        "definition": "from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"${NodeIdentifier}\"])\r\n  |> group()\r\n  |> keep(columns: [\"${NodeIdentifier}\"])\r\n  |> distinct(column: \"${NodeIdentifier}\")\r\n\r\n",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "Node",
+        "options": [],
+        "query": {
+          "query": "from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"${NodeIdentifier}\"])\r\n  |> group()\r\n  |> keep(columns: [\"${NodeIdentifier}\"])\r\n  |> distinct(column: \"${NodeIdentifier}\")\r\n\r\n"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "python-scraping",
+          "value": "python-scraping"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "Bucket",
+        "options": [
+          {
+            "selected": true,
+            "text": "python-scraping",
+            "value": "python-scraping"
+          }
+        ],
+        "query": "python-scraping",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "short_name",
+          "value": "short_name"
+        },
+        "description": "Search nodes",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Node Grouping",
+        "multi": false,
+        "name": "NodeIdentifier",
+        "options": [
+          {
+            "selected": true,
+            "text": "short_name",
+            "value": "short_name"
+          },
+          {
+            "selected": false,
+            "text": "long_name",
+            "value": "long_name"
+          },
+          {
+            "selected": false,
+            "text": "mac_address",
+            "value": "mac_address"
+          },
+          {
+            "selected": false,
+            "text": "id",
+            "value": "id"
+          },
+          {
+            "selected": false,
+            "text": "hw_model",
+            "value": "hw_model"
+          }
+        ],
+        "query": "short_name, long_name, mac_address, id, hw_model",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "meshtastic_node",
+          "value": "meshtastic_node"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "Measurement",
+        "options": [
+          {
+            "selected": true,
+            "text": "meshtastic_node",
+            "value": "meshtastic_node"
+          }
+        ],
+        "query": "meshtastic_node",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "short_name",
+          "value": "short_name"
+        },
+        "description": "Sets name in graphs, 1st value is linked to Node Identifier",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Display Name",
+        "multi": false,
+        "name": "DisplayName",
+        "options": [
+          {
+            "selected": true,
+            "text": "short_name",
+            "value": "short_name"
+          },
+          {
+            "selected": true,
+            "text": "short_name",
+            "value": "short_name"
+          },
+          {
+            "selected": false,
+            "text": "long_name",
+            "value": "long_name"
+          },
+          {
+            "selected": false,
+            "text": "mac_address",
+            "value": "mac_address"
+          },
+          {
+            "selected": false,
+            "text": "id",
+            "value": "id"
+          }
+        ],
+        "query": "${NodeIdentifier}, short_name, long_name, mac_address, id",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": [
+            "All Nodes"
+          ],
+          "value": [
+            "All Nodes"
+          ]
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "a8WXhOlnk"
+        },
+        "definition": "import \"array\"\r\n\r\n// Fetch unique discovered_by entries\r\ndiscovered_by = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"discovered_by\"])\r\n  |> group()\r\n  |> keep(columns: [\"discovered_by\"])\r\n  |> unique(column: \"discovered_by\")\r\n  |> map(fn: (r) => ({r with id: r.discovered_by}))\r\n  //|> yield(name: \"discovered_by\")\r\n\r\n// Fetch unique node names along with their associated id and short_name\r\nnode_names = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"${NodeIdentifier}\"])\r\n  |> group()\r\n  |> keep(columns: [\"id\", \"${NodeIdentifier}\"])\r\n  |> unique(column: \"id\")\r\n\r\n// Join the data to get discovered_by entries with their corresponding short_name\r\njoined_data = join(\r\n  tables: {discovered: discovered_by, nodes: node_names},\r\n  on: [\"id\"],\r\n  method: \"inner\"\r\n)\r\n  |> keep(columns: [\"${NodeIdentifier}\"])\r\n\r\n// Create a table with a single row containing 'all'\r\nall_entry = array.from(rows: [{${NodeIdentifier}: \"All Nodes\"}])\r\n\r\n// Combine the 'all' entry with the joined data\r\nfinal_data = union(tables: [joined_data, all_entry])\r\n\r\n// Yield the final result\r\nfinal_data |> yield(name: \"unique_discovered_by_with_short_name\")",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Discovered By",
+        "multi": true,
+        "name": "DiscoveredBy",
+        "options": [],
+        "query": {
+          "query": "import \"array\"\r\n\r\n// Fetch unique discovered_by entries\r\ndiscovered_by = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"discovered_by\"])\r\n  |> group()\r\n  |> keep(columns: [\"discovered_by\"])\r\n  |> unique(column: \"discovered_by\")\r\n  |> map(fn: (r) => ({r with id: r.discovered_by}))\r\n  //|> yield(name: \"discovered_by\")\r\n\r\n// Fetch unique node names along with their associated id and short_name\r\nnode_names = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"${NodeIdentifier}\"])\r\n  |> group()\r\n  |> keep(columns: [\"id\", \"${NodeIdentifier}\"])\r\n  |> unique(column: \"id\")\r\n\r\n// Join the data to get discovered_by entries with their corresponding short_name\r\njoined_data = join(\r\n  tables: {discovered: discovered_by, nodes: node_names},\r\n  on: [\"id\"],\r\n  method: \"inner\"\r\n)\r\n  |> keep(columns: [\"${NodeIdentifier}\"])\r\n\r\n// Create a table with a single row containing 'all'\r\nall_entry = array.from(rows: [{${NodeIdentifier}: \"All Nodes\"}])\r\n\r\n// Combine the 'all' entry with the joined data\r\nfinal_data = union(tables: [joined_data, all_entry])\r\n\r\n// Yield the final result\r\nfinal_data |> yield(name: \"unique_discovered_by_with_short_name\")"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "",
+        "current": {
+          "selected": false,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "a8WXhOlnk"
+        },
+        "definition": "discovered_by = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"discovered_by\"])\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${DiscoveredBy:regex}/)\r\n  //|> filter(fn: (r) => r.${NodeIdentifier} == \"${DiscoveredBy}\")\r\n  |> group()\r\n  |> keep(columns: [\"id\"])\r\n  |> unique(column: \"id\")\r\n  \r\n  |> yield(name: \"discovered_by\")",
+        "description": "References DiscoveredBy name",
+        "hide": 1,
+        "includeAll": true,
+        "label": "Discovered By Id",
+        "multi": true,
+        "name": "DiscoveredById",
+        "options": [],
+        "query": {
+          "maxDataPoints": 1000,
+          "query": "discovered_by = from(bucket: \"${Bucket}\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r._measurement == \"${Measurement}\")\r\n  |> keyValues(keyColumns: [\"discovered_by\"])\r\n  |> filter(fn: (r) => r[\"${NodeIdentifier}\"] =~ /${DiscoveredBy:regex}/)\r\n  //|> filter(fn: (r) => r.${NodeIdentifier} == \"${DiscoveredBy}\")\r\n  |> group()\r\n  |> keep(columns: [\"id\"])\r\n  |> unique(column: \"id\")\r\n  \r\n  |> yield(name: \"discovered_by\")",
+          "refId": "InfluxVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "MeshFlux",
+  "uid": "edtn8dsmwyt4wf",
+  "version": 95,
+  "weekStart": ""
+}

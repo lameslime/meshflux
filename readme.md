@@ -39,8 +39,9 @@ It is confirmed working with RAK4631 using PoE, you can edit cmd variable to use
 - Done: INCLUDE_DISCOVERED_BY functionality in grafana
 If enabled then it will create duplicate names in 'basic' queries, because if you use multiple nodes to ingest data to the same bucket fields will be different.
 Additinal logic will be needed in flux queries, to ignore/filter based on ingestors id.
-- Error handling (Meshtasic and InfluxDB timeouts)
-- Multiple Meshtastic nodes (currently you need more python instances) 
+- Done: Error handling (Meshtasic and InfluxDB timeouts); Super basic 3 tries and still continues
+- Done: Multiple Meshtastic nodes (currently you need more python instances)
+- Done: Data deduplication (GPS data gets outdated fast)
 
 ## Credits
 Dmitri Prigojev for inspiration

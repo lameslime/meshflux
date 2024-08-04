@@ -24,7 +24,6 @@ MQTT isn't meant for long term storage and it's harder to visualize
     - With a bucket and token
   - Grafana (and InfluxDB as data source)
 - Rename env.py.example to env.py and fill in
-- Possibly edit cmd variable in get_meshtastic_data function (main.py)
 - Import Grafana dashboard (you also need official GeoMap plugin)
 - Run and wait for data
 
@@ -34,12 +33,11 @@ or skip having a python install and use a docker container
 - docker compose up --build -d
 
 ## Note
-I happened to make it on Windows, there should be no problems on linux (check cmd variable)
-
-It is confirmed working with RAK4631 using PoE, you can edit cmd variable to use bt or usb
+It is confirmed working with RAK4631 using PoE and Heltec V3 using wifi  
+You can edit cmd variable to use bt or usb instead, multiple Meshtastic devices should still work
 
 ## TODO and sort of a buglist
-Left are qol changes, some are easier, others I don't want to spend time on
+Left are qol changes, some are easier, others I don't want to spend time on  
 - Done: Docker image
 - Done: Hopefully have a heatmap layer on map displaying signal strength
 - Done: INCLUDE_DISCOVERED_BY functionality in grafana  
@@ -50,15 +48,16 @@ Additional logic will be needed in flux queries, to ignore/filter based on inges
 - Done: Data deduplication (GPS data gets outdated fast)
 - Filter out garbage position data (too big changes, eg node is indoors and gps is innaccurate, like in the screenshot)
 - Maybe apply deduplication elsewhere (need dynamic way)
-- Figure out how to link/reference discovered_by to display name in Grafana
+- Figure out how to link/reference discovered_by column to display name in Grafana
 - Try to locate nodes based on SNR
 - Hosts seem to have different values (battery can be 10% different, creates 'ocilations' on graphs)
 - Show only last gps location on map (need some if statement in flux)
 - Map query fails if it can't make a difference between values (node needs to travel in search timeframe to appear)
+- Support for usb and bt devices along with tcp
+
+## License
+Use it as you want, but I'd like to be listed in credits
 
 ## Credits
 Dmitri Prigojev for inspiration
 https://github.com/dmitripr/meshtastic_InfluxDB
-
-## License
-Use it as you want, but I'd like to be listed in credits

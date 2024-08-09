@@ -96,14 +96,17 @@ def check_pos_time_diff(new_timestamp, host, node, old_data):
     # Checks if position timestamp has changed 
     # old_data has to look like {host_id: node_data, ...}
     if host in old_data.keys():
-        old_timestamp = old_data[host][node]["position"]["time"]
-        # print(f'{new_timestamp}; {old_timestamp}')
-        if new_timestamp != old_timestamp:
-            logger.debug(f'{node} position timestamp different, including')
-            return True
+        if node in old_data[host].keys():
+            old_timestamp = old_data[host][node]["position"]["time"]
+            # print(f'{new_timestamp}; {old_timestamp}')
+            if new_timestamp != old_timestamp:
+                logger.debug(f'{node} position timestamp different, including')
+                return True
+        else:
+            logger.debug(f'Got timestamp, but node ({node}) not in previous data')
     else:
         logger.debug(f'No timestamp on {node}')
-        return False
+    return False
 
 def prepare_node_data(node_data, own_data):
     all_nodes = []
@@ -210,6 +213,10 @@ def prepare_node_data(node_data, own_data):
             snr = handle_missing_data(value, "snr")
             if snr is not None:
                 node_data["fields"]["snr"] = float(snr)
+            
+            hops_away = handle_missing_data(value, "hopsAway")
+            if snr is not None:
+                node_data["fields"]["hops_away"] = int(hops_away)
 
             role = handle_missing_data(user_data, "role")
             if role is not None:

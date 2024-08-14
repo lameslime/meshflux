@@ -80,6 +80,8 @@ def meshtastic_json_parser(raw_data, start_pos, end_pos):
     # Clean up the JSON before parsing
     json_chunk_fixed = json_chunk.replace("\\r", "")
     json_chunk_fixed = json_chunk_fixed.replace("\\n", "")
+    # Started getting invalid json, as node list grew. Reason unknown, this is a quick fix.
+    json_chunk_fixed = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_chunk_fixed)
 
     try:
         parsed_json = json.loads(json_chunk_fixed)

@@ -217,7 +217,7 @@ def prepare_node_data(node_data, own_data):
                 node_data["fields"]["snr"] = float(snr)
             
             hops_away = handle_missing_data(value, "hopsAway")
-            if snr is not None:
+            if hops_away is not None:
                 node_data["fields"]["hops_away"] = int(hops_away)
 
             role = handle_missing_data(user_data, "role")
